@@ -141,7 +141,12 @@ def bulk_add_libraries():
             line = line.strip()
             if not line:
                 continue
-            parts = [p.strip() for p in line.split(",")]
+            # Google Sheets-லிருந்து Paste செய்தால் Tab-ஆல் பிரிக்கும்;
+            # கைமுறையாக type செய்தால் Comma-ஆல் பிரிக்கலாம் — இரண்டையும் ஏற்கும்
+            if "\t" in line:
+                parts = [p.strip() for p in line.split("\t")]
+            else:
+                parts = [p.strip() for p in line.split(",")]
             name = parts[0]
             ltype = parts[1] if len(parts) > 1 else ""
             if name:
