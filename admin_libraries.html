@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<title>நூலகங்கள் பட்டியல் - Admin</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; background:#F5F3FF; padding:24px; max-width:700px; margin:0 auto; }
+  h2 { color:#4C1D95; }
+  textarea { width:100%; height:260px; padding:12px; border:2px solid #DDD6FE; border-radius:10px; font-family:monospace; font-size:0.9em; }
+  button { margin-top:12px; padding:10px 20px; background:#7C3AED; color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer; }
+  #msg { margin-top:12px; padding:12px; border-radius:8px; display:none; font-weight:600; }
+  .ok { background:#D1FAE5; color:#065F46; display:block !important; }
+  .err { background:#FEE2E2; color:#991B1B; display:block !important; }
+  p { color:#4B5563; font-size:0.9em; }
+</style>
+</head>
+<body>
+  <h2>📚 நூலகங்கள் பட்டியல் — Bulk Import</h2>
+  <p>ஒவ்வொரு வரியும்: <code>நூலகம் பெயர், வகை</code> (வகை optional). உ.கா:<br>
+  <code>திண்டுக்கல் மத்திய நூலகம், மத்திய நூலகம்</code></p>
+  <textarea id="libText" placeholder="நூலகம் 1, வகை1
+நூலகம் 2, வகை2
+..."></textarea>
+  <br>
+  <button onclick="submitLibraries()">⬆️ சேமி</button>
+  <div id="msg"></div>
+
+<script>
+function submitLibraries() {
+  const text = document.getElementById('libText').value;
+  fetch('/api/libraries/bulk', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text: text})
+  }).then(r => r.json()).then(result => {
+    const msg = document.getElementById('msg');
+    if (result.success) {
+      msg.className = 'ok';
+      msg.textContent = '✓ ' + result.count + ' நூலகங்கள் சேமிக்கப்பட்டன';
+    } else {
+      msg.className = 'err';
+      msg.textContent = '✗ Error: ' + result.error;
+    }
+  }).catch(err => {
+    const msg = document.getElementById('msg');
+    msg.className = 'err';
+    msg.textContent = '✗ Error: ' + err;
+  });
+}
+</script>
+</body>
+</html>
