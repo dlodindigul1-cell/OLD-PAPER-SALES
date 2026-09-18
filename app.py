@@ -383,11 +383,19 @@ def generate_pdf_route():
         pdf_bytes = generate_order_pdf(
             record, vendor_index, settings["officer_name"], settings["officer_designation"]
         )
-        filename = f"{library}_{period}_order.pdf".replace(" ", "_")
+        # HTTP header-கள் ASCII மட்டுமே ஏற்கும் — தமிழ் filename-ஐ நேரடியாக வைத்தால்
+        # reject ஆகும் (400/502). RFC 5987 filename*=UTF-8''... பயன்படுத்துகிறோம்.
+        from urllib.parse import quote
+        raw_filename = f"{library}_{period}_order.pdf".replace(" ", "_")
+        encoded_filename = quote(raw_filename)
         return Response(
             pdf_bytes,
             mimetype="application/pdf",
-            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+            headers={
+                "Content-Disposition": (
+                    f"inline; filename=\"order.pdf\"; filename*=UTF-8''{encoded_filename}"
+                )
+            },
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
