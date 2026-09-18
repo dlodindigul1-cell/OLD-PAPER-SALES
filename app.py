@@ -9,7 +9,7 @@ from flask import Flask, render_template, request, jsonify, Response
 import psycopg2
 import psycopg2.extras
 
-from pdf_generator import generate_order_pdf
+from pdf_generator import generate_order_pdf, generate_office_note_pdf, generate_sales_order_pdf
 
 app = Flask(__name__)
 
@@ -336,6 +336,9 @@ def generate_pdf_route():
     library = request.args.get("library", "")
     period = request.args.get("period", "")
     vendor_index_param = request.args.get("vendor_index")
+    # doc: "note" -> அலுவலகக் குறிப்பு மட்டும், "order" -> விற்பனை ஆணை மட்டும்,
+    #      "full" (default) -> இரண்டையும் இணைத்தது
+    doc_type = request.args.get("doc", "full")
 
     if not library or not period:
         return jsonify({"success": False, "error": "library, period தேவை"})
@@ -380,13 +383,25 @@ def generate_pdf_route():
         cur.close()
         conn.close()
 
-        pdf_bytes = generate_order_pdf(
-            record, vendor_index, settings["officer_name"], settings["officer_designation"]
-        )
+        if doc_type == "note":
+            pdf_bytes = generate_office_note_pdf(
+                record, vendor_index, settings["officer_name"], settings["officer_designation"]
+            )
+            suffix = "note"
+        elif doc_type == "order":
+            pdf_bytes = generate_sales_order_pdf(
+                record, vendor_index, settings["officer_name"], settings["officer_designation"]
+            )
+            suffix = "order"
+        else:
+            pdf_bytes = generate_order_pdf(
+                record, vendor_index, settings["officer_name"], settings["officer_designation"]
+            )
+            suffix = "order"
         # HTTP header-கள் ASCII மட்டுமே ஏற்கும் — தமிழ் filename-ஐ நேரடியாக வைத்தால்
         # reject ஆகும் (400/502). RFC 5987 filename*=UTF-8''... பயன்படுத்துகிறோம்.
         from urllib.parse import quote
-        raw_filename = f"{library}_{period}_order.pdf".replace(" ", "_")
+        raw_filename = f"{library}_{period}_{suffix}.pdf".replace(" ", "_")
         encoded_filename = quote(raw_filename)
         return Response(
             pdf_bytes,

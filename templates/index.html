@@ -583,9 +583,13 @@
         <h4>✅ விற்பனையாளர் தேர்வு</h4>
         <select class="vendor-choice" id="vendorChoice"></select>
         <div class="btn-row">
-          <button class="btn btn-pdf" onclick="generatePDF()" id="pdfBtn">
-            <span class="spinner" id="pdfSpinner"></span>
-            📄 அலுவலகக் குறிப்பு & விற்பனை ஆணை PDF உருவாக்கு
+          <button class="btn btn-pdf" onclick="generatePDF('note', this)" id="notePdfBtn">
+            <span class="spinner" id="notePdfSpinner"></span>
+            📝 1. அலுவலகக் குறிப்பு உருவாக்கு
+          </button>
+          <button class="btn btn-pdf" onclick="generatePDF('order', this)" id="orderPdfBtn">
+            <span class="spinner" id="orderPdfSpinner"></span>
+            📄 2. விற்பனை ஆணை உருவாக்கு
           </button>
         </div>
       </div>
@@ -1096,7 +1100,7 @@
     });
   }
 
-  function generatePDF() {
+  function generatePDF(docType, btnEl) {
     const library = document.getElementById('orderLibrarySelect').value;
     const period = document.getElementById('orderPeriodSelect').value;
     const selectedVendor = parseInt(document.getElementById('vendorChoice').value);
@@ -1104,13 +1108,14 @@
       alert('தயவு செய்து அனைத்து தேவையான தரவு தேர்ந்தெடுக்கவும்');
       return;
     }
-    const btn = document.getElementById('pdfBtn');
-    const spinner = document.getElementById('pdfSpinner');
+    const btn = btnEl || document.getElementById(docType === 'note' ? 'notePdfBtn' : 'orderPdfBtn');
+    const spinner = document.getElementById(docType === 'note' ? 'notePdfSpinner' : 'orderPdfSpinner');
     if (btn) btn.disabled = true;
     if (spinner) spinner.classList.add('active');
     const url = '/api/generate-pdf?library=' + encodeURIComponent(library)
       + '&period=' + encodeURIComponent(period)
-      + '&vendor_index=' + selectedVendor;
+      + '&vendor_index=' + selectedVendor
+      + '&doc=' + encodeURIComponent(docType);
     fetch(url).then(function(res) {
       if (btn) btn.disabled = false;
       if (spinner) spinner.classList.remove('active');
@@ -1120,7 +1125,9 @@
           const blobUrl = URL.createObjectURL(blob);
           window.open(blobUrl, '_blank');
           orderMsg.className = 'result-card result-success';
-          orderMsg.textContent = '✓ PDF தயாரிக்கப்பட்டது!';
+          orderMsg.textContent = (docType === 'note'
+            ? '✓ அலுவலகக் குறிப்பு தயாரிக்கப்பட்டது!'
+            : '✓ விற்பனை ஆணை தயாரிக்கப்பட்டது!');
           orderMsg.style.display = 'block';
         });
       } else {
