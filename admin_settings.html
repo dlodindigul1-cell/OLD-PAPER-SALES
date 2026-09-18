@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<title>அமைப்புகள் - Admin</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; background:#F5F3FF; padding:24px; max-width:600px; margin:0 auto; }
+  h2 { color:#4C1D95; }
+  label { display:block; margin-top:16px; font-weight:600; color:#374151; }
+  input { width:100%; padding:10px; border:2px solid #DDD6FE; border-radius:8px; font-size:1em; margin-top:4px; }
+  button { margin-top:20px; padding:10px 20px; background:#7C3AED; color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer; }
+  #msg { margin-top:12px; padding:12px; border-radius:8px; display:none; font-weight:600; }
+  .ok { background:#D1FAE5; color:#065F46; display:block !important; }
+  .err { background:#FEE2E2; color:#991B1B; display:block !important; }
+  p.hint { color:#6B7280; font-size:0.85em; margin-top:4px; }
+</style>
+</head>
+<body>
+  <h2>⚙️ ஆணை PDF அமைப்புகள்</h2>
+  <p class="hint">PDF-ன் கையொப்ப தொகுதியில் இவை பயன்படுத்தப்படும்.</p>
+
+  <label>அலுவலர் பெயர் (தகுதிகளுடன்)</label>
+  <input id="officerName" placeholder="திரு.இரா.சரவணக்குமார், M.A., M.L.I.Sc.">
+  <p class="hint">குறிப்பு பக்கத்தில் "முன்னிலை:-" வரிக்குப் பின் இது வரும்</p>
+
+  <label>பதவி</label>
+  <input id="officerDesignation" placeholder="மாவட்ட நூலக அலுவலர்">
+  <p class="hint">இரு பக்கங்களிலும் பதவி பெயராக இது வரும்</p>
+
+  <button onclick="saveSettings()">💾 சேமி</button>
+  <div id="msg"></div>
+
+<script>
+function loadSettings() {
+  fetch('/api/settings').then(r => r.json()).then(result => {
+    if (result.success) {
+      document.getElementById('officerName').value = result.data.officer_name || '';
+      document.getElementById('officerDesignation').value = result.data.officer_designation || '';
+    }
+  });
+}
+function saveSettings() {
+  const payload = {
+    officer_name: document.getElementById('officerName').value.trim(),
+    officer_designation: document.getElementById('officerDesignation').value.trim()
+  };
+  fetch('/api/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  }).then(r => r.json()).then(result => {
+    const msg = document.getElementById('msg');
+    if (result.success) {
+      msg.className = 'ok';
+      msg.textContent = '✓ சேமிக்கப்பட்டது';
+    } else {
+      msg.className = 'err';
+      msg.textContent = '✗ Error: ' + result.error;
+    }
+  });
+}
+loadSettings();
+</script>
+</body>
+</html>

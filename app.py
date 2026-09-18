@@ -5,9 +5,11 @@ import os
 import json
 from datetime import datetime
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import psycopg2
 import psycopg2.extras
+
+from pdf_generator import generate_order_pdf
 
 app = Flask(__name__)
 
@@ -41,8 +43,17 @@ def init_db():
             letter_date TEXT DEFAULT '',
             weights JSONB DEFAULT '{}'::jsonb,
             quotes JSONB DEFAULT '[]'::jsonb,
+            selected_vendor_index INTEGER,
             saved_at TIMESTAMP DEFAULT NOW(),
             UNIQUE (library_name, period)
+        );
+    """)
+    # பழைய table-களில் இந்த column இல்லாமல் இருக்கலாம் என்பதால் தனியாக சேர்க்கிறோம்
+    cur.execute("ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS selected_vendor_index INTEGER;")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
         );
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_library ON sales_records (library_name);")
@@ -72,6 +83,7 @@ def record_to_json(row):
         "letterDate": row["letter_date"],
         "weights": row["weights"] or {},
         "quotes": row["quotes"] or [],
+        "selectedVendorIndex": row.get("selected_vendor_index"),
         "savedAt": row["saved_at"].isoformat() if row["saved_at"] else None,
     }
 
@@ -87,6 +99,11 @@ def index():
 @app.route("/admin/libraries")
 def admin_libraries():
     return render_template("admin_libraries.html")
+
+
+@app.route("/admin/settings")
+def admin_settings_page():
+    return render_template("admin_settings.html")
 
 
 # ==========================================
@@ -261,6 +278,117 @@ def list_records():
         cur.close()
         conn.close()
         return jsonify({"success": True, "data": [record_to_json(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ==========================================
+# அமைப்புகள் (அலுவலர் பெயர்/பதவி — PDF கையொப்பத்திற்கு)
+# ==========================================
+DEFAULT_SETTINGS = {
+    "officer_name": "மாவட்ட நூலக அலுவலர்",
+    "officer_designation": "மாவட்ட நூலக அலுவலர்",
+}
+
+
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT key, value FROM settings;")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        data = dict(DEFAULT_SETTINGS)
+        for r in rows:
+            data[r["key"]] = r["value"]
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/settings", methods=["POST"])
+def save_settings():
+    try:
+        data = request.get_json(force=True)
+        conn = get_conn()
+        cur = conn.cursor()
+        for key, value in data.items():
+            cur.execute(
+                "INSERT INTO settings (key, value) VALUES (%s, %s) "
+                "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
+                (key, value),
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ==========================================
+# ஆணை PDF உருவாக்கம்
+# ==========================================
+@app.route("/api/generate-pdf", methods=["GET"])
+def generate_pdf_route():
+    library = request.args.get("library", "")
+    period = request.args.get("period", "")
+    vendor_index_param = request.args.get("vendor_index")
+
+    if not library or not period:
+        return jsonify({"success": False, "error": "library, period தேவை"})
+
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT * FROM sales_records WHERE library_name = %s AND period = %s;",
+            (library, period),
+        )
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "தரவு கிடைக்கவில்லை"})
+
+        record = record_to_json(row)
+
+        if vendor_index_param is not None and vendor_index_param != "":
+            vendor_index = int(vendor_index_param)
+        elif record.get("selectedVendorIndex") is not None:
+            vendor_index = record["selectedVendorIndex"]
+        else:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "வழங்குநர் தேர்வு செய்யப்படவில்லை"})
+
+        # settings
+        cur.execute("SELECT key, value FROM settings;")
+        srows = cur.fetchall()
+        settings = dict(DEFAULT_SETTINGS)
+        for r in srows:
+            settings[r["key"]] = r["value"]
+
+        # தேர்ந்தெடுத்த வழங்குநரை பதிவில் சேமிக்கவும் (பின்னர் தேடலில் மீண்டும் பதிவிறக்க)
+        cur.execute(
+            "UPDATE sales_records SET selected_vendor_index = %s WHERE library_name = %s AND period = %s;",
+            (vendor_index, library, period),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        pdf_bytes = generate_order_pdf(
+            record, vendor_index, settings["officer_name"], settings["officer_designation"]
+        )
+        filename = f"{library}_{period}_order.pdf".replace(" ", "_")
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
