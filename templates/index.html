@@ -1075,12 +1075,12 @@
       const row = tbody.insertRow();
       row.insertCell().textContent = cat;
       const prices = (data.quotes || []).map(q => parseFloat(q.prices[categoryKeys[idx]]) || 0);
-      const minPrice = Math.min(...prices.filter(p => p > 0));
+      const maxPrice = Math.max(...prices.filter(p => p > 0));
       (data.quotes || []).forEach((quote, qIdx) => {
         const cell = row.insertCell();
         const price = quote.prices[categoryKeys[idx]] || '-';
         cell.textContent = price !== '-' ? '₹' + price : '-';
-        if (parseFloat(price) === minPrice && minPrice > 0) cell.className = 'lowest';
+        if (parseFloat(price) === maxPrice && maxPrice > 0) cell.className = 'lowest';
       });
     });
     const div = document.getElementById('comparisonTableDiv');
@@ -1104,12 +1104,37 @@
       alert('தயவு செய்து அனைத்து தேவையான தரவு தேர்ந்தெடுக்கவும்');
       return;
     }
-    // PDF உருவாக்கும் பகுதி தற்போது migration-ல் postpone செய்யப்பட்டுள்ளது —
-    // Entry/Order/Search தரவு அமைப்பு Neon-ல் நிலைப்பட்ட பின், இதை இணைப்போம்.
-    const orderMsg = document.getElementById('orderMsg');
-    orderMsg.className = 'result-card result-info';
-    orderMsg.style.display = 'block';
-    orderMsg.textContent = 'ℹ️ PDF உருவாக்கும் அம்சம் விரைவில் இணைக்கப்படும் — தற்போது தரவு பதிவு/தேடல் மட்டும் இயங்குகிறது.';
+    const btn = document.getElementById('pdfBtn');
+    const spinner = document.getElementById('pdfSpinner');
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.classList.add('active');
+    const url = '/api/generate-pdf?library=' + encodeURIComponent(library)
+      + '&period=' + encodeURIComponent(period)
+      + '&vendor_index=' + selectedVendor;
+    fetch(url).then(function(res) {
+      if (btn) btn.disabled = false;
+      if (spinner) spinner.classList.remove('active');
+      const orderMsg = document.getElementById('orderMsg');
+      if (res.ok && res.headers.get('Content-Type') === 'application/pdf') {
+        res.blob().then(function(blob) {
+          const blobUrl = URL.createObjectURL(blob);
+          window.open(blobUrl, '_blank');
+          orderMsg.className = 'result-card result-success';
+          orderMsg.textContent = '✓ PDF தயாரிக்கப்பட்டது!';
+          orderMsg.style.display = 'block';
+        });
+      } else {
+        res.json().then(function(result) {
+          orderMsg.className = 'result-card result-error';
+          orderMsg.textContent = '✗ PDF உருவாக்க முடியவில்லை: ' + (result.error || 'Unknown error');
+          orderMsg.style.display = 'block';
+        });
+      }
+    }).catch(function(err) {
+      if (btn) btn.disabled = false;
+      if (spinner) spinner.classList.remove('active');
+      alert('Error: ' + err);
+    });
   }
 
   // ==========================================
@@ -1152,8 +1177,25 @@
   }
 
   function openPdf(btn) {
-    // PDF உருவாக்கும் பகுதி postpone செய்யப்பட்டுள்ளது — இணைந்தவுடன் இது இயங்கும்
-    alert('PDF பதிவிறக்கம் விரைவில் இணைக்கப்படும்.');
+    const library = btn.getAttribute('data-lib');
+    const period = btn.getAttribute('data-per');
+    btn.disabled = true; btn.textContent = '⏳';
+    const url = '/api/generate-pdf?library=' + encodeURIComponent(library) + '&period=' + encodeURIComponent(period);
+    fetch(url).then(function(res) {
+      btn.disabled = false; btn.textContent = '📥 திற';
+      if (res.ok && res.headers.get('Content-Type') === 'application/pdf') {
+        res.blob().then(function(blob) {
+          window.open(URL.createObjectURL(blob), '_blank');
+        });
+      } else {
+        res.json().then(function(result) {
+          alert('PDF கிடைக்கவில்லை: ' + (result.error || 'இன்னும் ஆணை உருவாக்கப்படவில்லை'));
+        });
+      }
+    }).catch(function(err) {
+      btn.disabled = false; btn.textContent = '📥 திற';
+      alert('Error: ' + err);
+    });
   }
 
   // ==========================================
