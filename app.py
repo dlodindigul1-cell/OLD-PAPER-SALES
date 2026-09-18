@@ -401,7 +401,11 @@ def generate_pdf_route():
         # HTTP header-கள் ASCII மட்டுமே ஏற்கும் — தமிழ் filename-ஐ நேரடியாக வைத்தால்
         # reject ஆகும் (400/502). RFC 5987 filename*=UTF-8''... பயன்படுத்துகிறோம்.
         from urllib.parse import quote
-        raw_filename = f"{library}_{period}_{suffix}.pdf".replace(" ", "_")
+        if doc_type == "order":
+            # விற்பனை ஆணை: "library name - period.pdf"
+            raw_filename = f"{library} - {period}.pdf"
+        else:
+            raw_filename = f"{library}_{period}_{suffix}.pdf".replace(" ", "_")
         encoded_filename = quote(raw_filename)
         return Response(
             pdf_bytes,

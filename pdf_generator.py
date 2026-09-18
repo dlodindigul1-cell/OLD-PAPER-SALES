@@ -56,6 +56,28 @@ class OrderPDF(FPDF):
         self.multi_cell(self.epw - indent, 6, text, new_x="LMARGIN", new_y="NEXT")
         self.ln(gap)
 
+    def p_first_line_indent(self, text, size=11, gap=1.3, first_indent=50):
+        """பத்தியின் முதல் வரி மட்டும் உள்ளே சென்று (first-line indent),
+        மீதமுள்ள வரிகள் இடது ஓரத்திலிருந்து தொடங்கும்."""
+        self.set_font("Tamil", "", size)
+        first_line_width = self.epw - first_indent
+        words = text.split(" ")
+        line = ""
+        i = 0
+        while i < len(words):
+            trial = (line + " " + words[i]).strip()
+            if not line or self.get_string_width(trial) <= first_line_width:
+                line = trial
+                i += 1
+            else:
+                break
+        rest = " ".join(words[i:])
+        self.set_x(self.l_margin + first_indent)
+        self.cell(first_line_width, 6, line, new_x="LMARGIN", new_y="NEXT")
+        if rest:
+            self.multi_cell(self.epw, 6, rest, new_x="LMARGIN", new_y="NEXT")
+        self.ln(gap)
+
     def signature_space(self, height=12):
         """கையொப்பம் இட (pen-ஆல்) காலியிடம்"""
         self.ln(height)
@@ -214,9 +236,9 @@ def _draw_sales_order(pdf, record, vendor_index, officer_name, officer_designati
     if designation_line and not designation_line.endswith("."):
         designation_line += "."
 
-    # -------- Letterhead --------
+    # -------- Letterhead (ஒரே வரியில்) --------
     pdf.heading(
-        "திண்டுக்கல் மாவட்ட நூலக அலுவலரின் செயல்முறைகள் ,        திண்டுக்கல்",
+        "திண்டுக்கல் மாவட்ட நூலக அலுவலரின் செயல்முறைகள் , திண்டுக்கல்",
         size=12, gap=1.0, indent=0,
     )
     pdf.label_para("முன்னிலை :-", officer_name or "", indent=LABEL_W, size=11, gap=0.3)
@@ -234,7 +256,7 @@ def _draw_sales_order(pdf, record, vendor_index, officer_name, officer_designati
     pdf.ln(1)
 
     pdf.heading("ஆணை", size=13, gap=1.0)
-    pdf.p(
+    pdf.p_first_line_indent(
         f"பார்வையில் காணும் {libname} நூலகரின் கடிதத்துடன் இணைத்து சமர்ப்பித்த "
         f"ஒப்பப்புள்ளிகள் பரிசீலனை செய்யப்பட்டு, கூடுதல் விலைப்புள்ளி அளித்த "
         f"கீழ்க்காணும் நபருக்கு {period} உள்ள பழைய செய்தி ஏடுகள் விற்பனை செய்ய "
@@ -249,10 +271,16 @@ def _draw_sales_order(pdf, record, vendor_index, officer_name, officer_designati
     total_amount = pdf.quote_table(weights, selected.get("prices") or {}, total_label="மொத்தம்")
     pdf.ln(1)
 
+    # "மொத்தம்" (கடைசி) நெடுவரிசைக்குக் கீழேயே ரூ. தொகை வர வேண்டும்
+    last_col_x = pdf.l_margin + sum(COL_WIDTHS[:-1])
+    last_col_w = COL_WIDTHS[-1]
+    y = pdf.get_y()
     pdf.set_font("Tamil", "B", 11)
-    pdf.cell(70, 6, "மொத்த விற்பனை தொகை – ரூ", new_x="RIGHT", new_y="TOP")
+    pdf.set_xy(pdf.l_margin, y)
+    pdf.cell(last_col_x - pdf.l_margin, 6, "மொத்த விற்பனை தொகை – ரூ", align="R", new_x="LMARGIN", new_y="TOP")
     pdf.set_font("Tamil", "", 11)
-    pdf.cell(0, 6, f"{total_amount:.2f}", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_xy(last_col_x, y)
+    pdf.cell(last_col_w, 6, f"{total_amount:.2f}", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1.5)
 
     pdf.p("1. விற்பனை தொகைக்கு அன்றைய தினமே இரசீது கொடுக்க வேண்டும்.")
@@ -263,7 +291,7 @@ def _draw_sales_order(pdf, record, vendor_index, officer_name, officer_designati
         "அதற்குரிய தொகையை நூலகரிடமிருந்து வசூலிக்கப்படும் என நூலகர் "
         "அறிவுறுத்தப்படுகிறார்."
     )
-    pdf.ln(2)
+    pdf.ln(10)
 
     # -------- கையொப்ப பகுதி --------
     pdf.two_col_line("", designation_line.rstrip(".") if designation_line else "", gap=0.3)
