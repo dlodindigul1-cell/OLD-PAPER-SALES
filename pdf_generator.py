@@ -38,15 +38,19 @@ class OrderPDF(FPDF):
         self.add_font("Tamil", "B", os.path.join(FONT_DIR, "NotoSansTamil-Bold.ttf"))
         self.set_text_shaping(True)
 
-    def heading(self, text, size=12, gap=2):
+    def heading(self, text, size=12, gap=1.3):
         self.set_font("Tamil", "B", size)
-        self.multi_cell(0, 7, text, new_x="LMARGIN", new_y="NEXT")
-        self.ln(gap)
-
-    def p(self, text, size=11, gap=2):
-        self.set_font("Tamil", "", size)
         self.multi_cell(0, 6.5, text, new_x="LMARGIN", new_y="NEXT")
         self.ln(gap)
+
+    def p(self, text, size=11, gap=1.3):
+        self.set_font("Tamil", "", size)
+        self.multi_cell(0, 6, text, new_x="LMARGIN", new_y="NEXT")
+        self.ln(gap)
+
+    def signature_space(self, height=12):
+        """கையொப்பம் இட (pen-ஆல்) காலியிடம்"""
+        self.ln(height)
 
     def quote_table(self, weights, prices):
         headers = ["வ.எண்", "பத்திரிக்கைகள் விவரம்", "கிலோ 1க்கு விலை", "மொத்த எடை", "மொத்தம்"]
@@ -66,7 +70,7 @@ class OrderPDF(FPDF):
         with self.table(
             col_widths=COL_WIDTHS,
             text_align=("CENTER", "LEFT", "CENTER", "CENTER", "CENTER"),
-            line_height=6,
+            line_height=5.3,
         ) as table:
             row = table.row()
             self.set_font("Tamil", "B", 10)
@@ -106,8 +110,8 @@ def generate_order_pdf(record, vendor_index, officer_name, officer_designation):
     )
 
     pdf = OrderPDF(format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_margins(15, 15, 15)
+    pdf.set_auto_page_break(auto=True, margin=12)
+    pdf.set_margins(15, 12, 15)
     pdf.setup_fonts()
 
     # ================= PAGE 1: குறிப்பு =================
@@ -120,13 +124,13 @@ def generate_order_pdf(record, vendor_index, officer_name, officer_designation):
         f"{period} இருப்புள்ள பழைய நாளிதழ்களை விற்பனை செய்ய "
         f"பின்வருமாறு விலைப்புள்ளிகள் பெறப்பட்டுள்ளன."
     )
-    pdf.ln(2)
+    pdf.ln(1)
 
     for i, q in enumerate(quotes):
         vname = q.get("vendorName", "")
-        pdf.heading(f"விலைப்புள்ளி {i + 1}   {vname}", size=11, gap=1)
+        pdf.heading(f"விலைப்புள்ளி {i + 1}   {vname}", size=11, gap=0.5)
         pdf.quote_table(weights, q.get("prices") or {})
-        pdf.ln(2)
+        pdf.ln(1)
 
     selected_name = selected.get("vendorName", "")
     pdf.p(
@@ -135,10 +139,10 @@ def generate_order_pdf(record, vendor_index, officer_name, officer_designation):
         f"அனுமதிக்கும் மேலான நடவடிக்கைக்கு ஒப்புதல் கோரி இக்கோரிக்கை பணிவுடன் "
         f"சமர்ப்பிக்கப்படுகிறது."
     )
-    pdf.ln(6)
+    pdf.ln(2)
     pdf.p("ஆணைக்காக")
     pdf.p("திண்டுக்கல் மாவட்ட நூலக அலுவலகத்தில் செயல்முறைகள், திண்டுக்கல்")
-    pdf.ln(4)
+    pdf.signature_space(12)  # கையொப்பம் இட காலியிடம்
     pdf.p(f"முன்னிலை:- {officer_name}")
     pdf.p(f"{officer_designation}.")
 
@@ -147,19 +151,19 @@ def generate_order_pdf(record, vendor_index, officer_name, officer_designation):
     pdf.p(f"ந.க.எண். {rcnum}                                    நாள்:- {today_str}")
     pdf.p(f"பொருள்:- {subject}")
     pdf.p(f"பார்வை:- {libname} கடித நாள். {letter_date}")
-    pdf.ln(2)
-    pdf.heading("ஆணை", size=13, gap=3)
+    pdf.ln(1)
+    pdf.heading("ஆணை", size=13, gap=1.5)
     pdf.p(
         f"பார்வையில் காணும் {libname} நூலகர் கடிதத்துடன் இணைத்து சமர்ப்பித்த "
         f"ஒப்பந்தப் புள்ளிகள் பரிசீலனை செய்யப்பட்டு, அதில் விலைப்புள்ளி அளித்த "
         f"கீழ்க்கண்ட நபருக்கு {period} உள்ள பழைய செய்தி ஏடுகள் விற்பனை செய்ய "
         f"ஆணை வழங்கப்படுகிறது."
     )
-    pdf.ln(2)
+    pdf.ln(1)
     pdf.p(f"திருவாளர்:- {selected_name}")
     total_amount = pdf.quote_table(weights, selected.get("prices") or {})
-    pdf.ln(2)
-    pdf.heading(f"மொத்த விற்பனை தொகை – ரூ {total_amount:.2f}", size=11, gap=3)
+    pdf.ln(1)
+    pdf.heading(f"மொத்த விற்பனை தொகை – ரூ {total_amount:.2f}", size=11, gap=1.5)
 
     pdf.p("1. விற்பனை தொகைக்கு அன்றைய தினமே ரசீது கொடுக்க வேண்டும்.")
     pdf.p("2. விற்பனை செய்து முடித்த பின்னர் தொகையை வங்கி அல்லது ரொக்கமூலம் செலுத்த வேண்டும்.")
@@ -168,10 +172,10 @@ def generate_order_pdf(record, vendor_index, officer_name, officer_designation):
         "எடை குறைவு ஏற்படாமல் இருக்க வேண்டும். எடை குறைவு ஏற்பட்டால் அதற்கிணங்க "
         "தொகையினை நூலகரிடமிருந்து வசூலிக்கப்படும் என நூலகர் அறிவுறுத்தப்படுகிறார்."
     )
-    pdf.ln(6)
+    pdf.signature_space(12)  # கையொப்பம் இட காலியிடம்
     pdf.p(officer_designation)
     pdf.p("பொறுப்பு நூலகர், திண்டுக்கல்.")
-    pdf.ln(4)
+    pdf.ln(2)
     pdf.p(f"நகல்:- {libname} அவர்களுக்கு.")
 
     return bytes(pdf.output())
